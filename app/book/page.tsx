@@ -247,7 +247,7 @@ function BookingContent() {
     } else {
       setScheduledTime("");
     }
-  }, [availableTimeSlots, scheduledTime]);
+  }, [availableTimeSlots]);
 
   useEffect(() => {
     if (sameAsPickup) {
@@ -303,10 +303,10 @@ function BookingContent() {
   };
 
   const openDatePicker = (inputId: string) => {
-    const inputEl = document.getElementById(inputId) as HTMLInputElement;
+    const inputEl = document.getElementById(inputId) as HTMLInputElement | null;
     if (inputEl) {
       try {
-        if ('showPicker' in inputEl) {
+        if (typeof inputEl.showPicker === "function") {
           inputEl.showPicker();
         } else {
           inputEl.focus();

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { carServices, bikeServices, formatDuration, ServiceItem } from '@/lib/services';
 
@@ -101,8 +100,6 @@ function ServicesContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32">
-      <Navbar />
-
       <div className="max-w-2xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-black text-gray-900 text-center mb-1">
           Choose Services

@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import StoreMap from "@/components/StoreMap";
-import HomeCTA from "@/components/HomeCTA";
+import dynamic from "next/dynamic";
+
+// Dynamic Client-Only Imports to prevent SSR compiler hanging
+const StoreMap = dynamic(() => import("@/components/StoreMap"), { ssr: false });
+const HomeCTA = dynamic(() => import("@/components/HomeCTA"), { ssr: false });
 
 // ==========================================
 // AUTOMOTIVE BRAND LOGOS (SVG)
@@ -190,11 +193,7 @@ const basicGeneralServiceChecklist = [
   "Brakes checkup",
 ];
 
-// ==========================================
-// MAIN HOMEPAGE COMPONENT
-// ==========================================
-
-export default function HomePage() {
+function HomeContent() {
   const brandScrollContainer = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState<
     "general" | "wash" | "detailing" | "teflon" | "wheels" | "combos" | "monthly"
@@ -204,8 +203,31 @@ export default function HomePage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
 
+  // Lock / Unlock body scroll when Tariff Price Menu Lightbox opens or closes
   useEffect(() => {
-    if (window.location.hash) {
+    if (isMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMenuOpen(false);
+        setIsZoomed(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "unset";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
       const id = window.location.hash.replace("#", "");
       const element = document.getElementById(id);
       if (element) {
@@ -895,68 +917,86 @@ export default function HomePage() {
 
       {/* ================= FIXED INTERACTIVE LIGHTBOX MODAL ================= */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
-          
-          {/* Top Bar with Controls */}
-          <div className="w-full max-w-5xl flex items-center justify-between pb-3 text-white border-b border-slate-800 mb-3">
-            <div className="text-xs md:text-sm text-slate-300 font-medium">
-              💡 <span className="font-bold text-blue-400">Click image</span> to toggle 1.5x Magnified Zoom
+        <div 
+          onClick={() => {
+            setIsMenuOpen(false);
+            setIsZoomed(false);
+          }}
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="w-full max-w-5xl flex flex-col items-center cursor-default"
+          >
+            {/* Top Bar with Controls */}
+            <div className="w-full flex items-center justify-between pb-3 text-white border-b border-slate-800 mb-3">
+              <div className="text-xs md:text-sm text-slate-300 font-medium">
+                💡 <span className="font-bold text-blue-400">Click image</span> to toggle 1.5x Magnified Zoom
+              </div>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsZoomed(false);
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold border border-slate-600 transition"
+                aria-label="Close modal"
+              >
+                ✕ Close
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                setIsMenuOpen(false);
-                setIsZoomed(false);
-              }}
-              className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold border border-slate-600 transition"
-              aria-label="Close modal"
-            >
-              ✕ Close
-            </button>
-          </div>
-
-          {/* Scrollable Viewport Container */}
-          <div className="w-full max-w-5xl max-h-[78vh] overflow-auto rounded-2xl bg-slate-900 border border-slate-800 flex justify-center p-2 md:p-6 no-scrollbar">
-            <div 
-              onClick={() => setIsZoomed(!isZoomed)}
-              className={`transition-all duration-300 ease-in-out ${
-                isZoomed 
-                  ? "cursor-zoom-out w-[1200px] max-w-none" 
-                  : "cursor-zoom-in w-full max-w-3xl"
-              }`}
-            >
-              <Image
-                src="/price-menu.png"
-                alt="Xpress Car Care Official Price Menu"
-                width={1000}
-                height={1450}
-                className="w-full h-auto object-contain rounded-xl shadow-2xl"
-                priority
-              />
+            {/* Scrollable Viewport Container */}
+            <div className="w-full max-h-[78vh] overflow-auto rounded-2xl bg-slate-900 border border-slate-800 flex justify-center p-2 md:p-6 no-scrollbar">
+              <div 
+                onClick={() => setIsZoomed(!isZoomed)}
+                className={`transition-all duration-300 ease-in-out ${
+                  isZoomed 
+                    ? "cursor-zoom-out w-[1200px] max-w-none" 
+                    : "cursor-zoom-in w-full max-w-3xl"
+                }`}
+              >
+                <Image
+                  src="/price-menu.png"
+                  alt="Xpress Car Care Official Price Menu"
+                  width={1000}
+                  height={1450}
+                  className="w-full h-auto object-contain rounded-xl shadow-2xl"
+                  priority
+                />
+              </div>
             </div>
+
+            {/* Bottom Action Footer */}
+            <div className="pt-4 flex items-center gap-4">
+              <button
+                onClick={() => setIsZoomed(!isZoomed)}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs md:text-sm text-white font-bold px-5 py-2.5 rounded-xl transition"
+              >
+                {isZoomed ? "🔍 Fit Screen" : "🔍 Magnify Image (1.5x)"}
+              </button>
+
+              <a
+                href="/price-menu.png"
+                download="Xpress_Car_Care_Price_Menu.png"
+                className="bg-blue-600 hover:bg-blue-700 text-xs md:text-sm text-white font-bold px-6 py-2.5 rounded-xl transition shadow-lg shadow-blue-600/30"
+              >
+                📥 Download Rate Card
+              </a>
+            </div>
+
           </div>
-
-          {/* Bottom Action Footer */}
-          <div className="pt-4 flex items-center gap-4">
-            <button
-              onClick={() => setIsZoomed(!isZoomed)}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs md:text-sm text-white font-bold px-5 py-2.5 rounded-xl transition"
-            >
-              {isZoomed ? "🔍 Fit Screen" : "🔍 Magnify Image (1.5x)"}
-            </button>
-
-            <a
-              href="/price-menu.png"
-              download="Xpress_Car_Care_Price_Menu.png"
-              className="bg-blue-600 hover:bg-blue-700 text-xs md:text-sm text-white font-bold px-6 py-2.5 rounded-xl transition shadow-lg shadow-blue-600/30"
-            >
-              📥 Download Rate Card
-            </a>
-          </div>
-
         </div>
       )}
 
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white text-slate-800">Loading Xpress Care...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
