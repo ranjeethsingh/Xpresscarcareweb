@@ -1,34 +1,30 @@
 "use client";
 
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
 
-export default function VehicleSelectPage() {
+function VehicleSelectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlType = searchParams.get("type") === "bike" ? "bike" : "car";
 
-  const [prefill, setPrefill] = useState<{ brand?: string; model?: string; reg?: string }>({});
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [reg, setReg] = useState("");
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem("@xpress_prefill") || localStorage.getItem("xpress_prefill");
       if (raw) {
         const parsed = JSON.parse(raw);
-        setPrefill({
-          brand: parsed.vehicleBrand || "",
-          model: parsed.vehicleModel || "",
-          reg: parsed.vehicleReg || "",
-        });
+        setBrand(parsed.vehicleBrand || "");
+        setModel(parsed.vehicleModel || "");
+        setReg(parsed.vehicleReg || "");
       }
     } catch {
       // ignore parse errors
     }
   }, []);
-
-  const [brand, setBrand] = useState(prefill.brand || "");
-  const [model, setModel] = useState(prefill.model || "");
-  const [reg, setReg] = useState(prefill.reg || "");
 
   const handleContinue = () => {
     const cleanReg = reg.trim().toUpperCase();
@@ -153,5 +149,13 @@ export default function VehicleSelectPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+export default function VehicleSelectPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[85vh] flex items-center justify-center">Loading...</div>}>
+      <VehicleSelectContent />
+    </Suspense>
   );
 }
