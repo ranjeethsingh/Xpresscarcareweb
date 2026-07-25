@@ -5,7 +5,6 @@ import { AuthProvider } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import ScrollToTop from "@/components/ScrollToTop";
 
-
 export const metadata: Metadata = {
   title: "Xpress Care | Professional Vehicle Services",
   description:
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className="bg-white text-slate-950 antialiased font-sans">
         <AuthProvider>
           <ScrollToTop />
@@ -135,7 +134,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <div className="lg:pt-8 lg:ml-10">
                   <h4 className="font-bold mb-6 text-white text-lg leading-none">
                     Support
-                  </h4>
+                    </h4>
 
                   <ul className="space-y-4 text-slate-400 text-sm">
                     <li>

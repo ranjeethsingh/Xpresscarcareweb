@@ -1,65 +1,80 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-interface AuthContextType {
-  user: any | null;
-  setUser: (user: any) => void;
-  loading: boolean;
-  hasProfile: boolean;
-  logout: () => void;
+// 1. Define your User data shape
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
 }
 
+// 2. Define the Auth Context Interface (Include updateProfile here!)
+export interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+}
+
+// 3. Create Context with an initial undefined default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
+// 4. Provider Component
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const checkUserFromStorage = () => {
-    try {
-      const stored = localStorage.getItem("xpress_user");
-      if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Example: Load user state on mount
   useEffect(() => {
-    checkUserFromStorage();
+    const initAuth = async () => {
+      try {
+        // Replace with your actual initial user fetching logic
+        const currentUser: User = { id: '1', name: 'John Doe', email: 'john@example.com' };
+        setUser(currentUser);
+      } catch (err) {
+        console.error('Failed to load user', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Listen to changes across tabs/windows or manual triggers
-    const handleStorageChange = () => checkUserFromStorage();
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    initAuth();
   }, []);
 
-  const logout = () => {
-    try {
-      localStorage.removeItem("xpress_user");
-      localStorage.removeItem("xpress_prefill");
-      localStorage.removeItem("xpress_otp_target");
-    } catch {}
+  // Logout Function
+  const logout = async () => {
+    // Perform API call / token removal here
     setUser(null);
   };
 
-  const hasProfile = Boolean(user && user.name && user.phone);
+  // 🟢 Update Profile Function implementation
+  const updateProfile = async (data: Partial<User>) => {
+    try {
+      // Perform your API update request here:
+      // await api.patch('/user/profile', data);
+
+      // Update state locally
+      setUser((prevUser) => (prevUser ? { ...prevUser, ...data } : null));
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      throw err; // Re-throw so your UI component can catch it in `setError`
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, hasProfile, logout }}>
+    <AuthContext.Provider value={{ user, loading, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
+// 5. Custom Hook with Type Guard
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
