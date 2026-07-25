@@ -5,11 +5,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 // 1. Define User type — includes every field referenced across the app
 export interface User {
   id: string;
-  name: string;
+  name: string | null;
   first_name?: string;
   last_name?: string;
-  email: string;
-  phone?: string;
+  email: string | null;
+  phone?: string | null;
   address?: string;
   avatarUrl?: string;
 }
@@ -18,7 +18,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (target: string, otp: string) => Promise<void>;
+  login: (userData: User) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
@@ -46,30 +46,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initAuth();
   }, []);
 
-  // 5. Login - verifies OTP against a target (email or phone) and sets the user
-  const login = async (target: string, otp: string) => {
+  // 5. Login - accepts a user object (e.g. from OTP verification response) and stores it
+  const login = async (userData: User) => {
     try {
-      // TODO: replace with your real API call, e.g.:
-      // const res = await fetch('/api/auth/verify-otp', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ target, otp }),
-      // });
-      // if (!res.ok) throw new Error('Invalid OTP');
-      // const loggedInUser: User = await res.json();
-
-      const isEmail = target.includes('@');
-      const loggedInUser: User = {
-        id: '1',
-        name: 'John Doe',
-        first_name: 'John',
-        last_name: 'Doe',
-        email: isEmail ? target : 'john@example.com',
-        phone: isEmail ? undefined : target,
-        address: '',
-      };
-
-      setUser(loggedInUser);
+      // TODO: if you need to persist a session/token, do it here too
+      // e.g. localStorage.setItem('xpress_session', JSON.stringify(userData));
+      setUser(userData);
     } catch (err) {
       console.error('Login failed:', err);
       throw err;
