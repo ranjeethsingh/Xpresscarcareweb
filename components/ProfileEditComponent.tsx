@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User } from '@/context/AuthContext';
 
 // 1. Updated User interface with optional `phone` property
 export interface User {
