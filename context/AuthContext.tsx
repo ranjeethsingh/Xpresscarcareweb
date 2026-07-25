@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+// 1. Define User type
 export interface User {
   id: string;
   name: string;
@@ -9,6 +10,7 @@ export interface User {
   avatarUrl?: string;
 }
 
+// 2. Define Context Type Interface (includes updateProfile)
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -16,8 +18,10 @@ export interface AuthContextType {
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
+// 3. Create Context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 4. Provider Component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,6 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// 5. Custom Hook
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -63,67 +68,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-Use code with caution.2. Updated Component File (The "Second Part" causing the build failure)This replaces the code around line 12. Note how the local text state is packaged inside an object { name: name } when calling updateProfile to strictly satisfy TypeScript guidelines.tsx'use client';
-
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-
-export default function ProfileEditComponent() {
-  const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  
-  // Line 12: Fixed extraction tracking perfectly with AuthContextType
-  const { user, updateProfile, logout, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (user) {
-      setName(user.name);
-    }
-  }, [user]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError('');
-
-    try {
-      // 🟢 FIX: Passing data as an object to match Partial<User> type definition
-      await updateProfile({ name: name });
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4">Edit Profile</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border p-2 rounded-md"
-          />
-        </div>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="bg-blue-500 text-white px-4 py-2 rounded-md disabled:bg-slate-300"
-        >
-          {isSubmitting ? 'Saving...' : 'Save Changes'}
-        </button>
-      </form>
-    </div>
-  );
-}
