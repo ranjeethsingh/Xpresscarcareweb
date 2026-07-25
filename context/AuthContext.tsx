@@ -2,12 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// 1. Define User type
+// 1. User Type
 export interface User {
   id: string;
-  name: string;
-  email: string;
-  phone?: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
   avatarUrl?: string;
 }
 
@@ -15,7 +15,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (target: string, otp: string) => Promise<void>;
+  login: (user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
@@ -43,25 +43,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initAuth();
   }, []);
 
-  // 5. Login - verifies OTP against a target (email or phone) and sets the user
-  const login = async (target: string, otp: string) => {
+  // 5. Login - stores an already-verified user (verification happens at the call site, e.g. OTP page)
+  const login = async (loggedInUser: User) => {
     try {
-      // TODO: replace with your real API call, e.g.:
-      // const res = await fetch('/api/auth/verify-otp', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ target, otp }),
-      // });
-      // if (!res.ok) throw new Error('Invalid OTP');
-      // const loggedInUser: User = await res.json();
-
-      const loggedInUser: User = {
-        id: '1',
-        name: 'John Doe',
-        email: target.includes('@') ? target : 'john@example.com',
-        phone: target.includes('@') ? undefined : target,
-      };
-
       setUser(loggedInUser);
     } catch (err) {
       console.error('Login failed:', err);
