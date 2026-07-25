@@ -18,6 +18,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
+  hasProfile: boolean;
   login: (userData: User) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -71,8 +72,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // A profile counts as "complete" once both name and phone are set
+  const hasProfile = Boolean(user && user.name && user.phone);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, hasProfile, login, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
