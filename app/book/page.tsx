@@ -360,7 +360,11 @@ function BookingContent() {
     }
   };
 
-  const saveBookingToSupabase = async (refId: string, paymentStatus: string) => {
+  const saveBookingToSupabase = async (
+    refId: string,
+    paymentStatus: string,
+    amountCharged: number
+  ) => {
     const serviceNames = selectedServices.map((s) => s.name).join(", ");
     const combinedAddressDetails =
       deliveryType === "workshop"
@@ -381,7 +385,9 @@ function BookingContent() {
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
         address: combinedAddressDetails,
-        status: paymentStatus,
+        status: "pending", // booking acceptance state — admin controls this, always starts pending
+        payment_status: paymentStatus, // separate concern — how/whether they've paid
+        amount_charged: amountCharged,
         created_at: new Date().toISOString(),
       },
     ]);
@@ -415,7 +421,8 @@ function BookingContent() {
       if (paymentMethod === "pay_later") {
         await saveBookingToSupabase(
           refId,
-          `Pending Payment (Pay After Service) [Charged: ₹${finalTotalAmount}]`
+          "Pending Payment (Pay After Service)",
+          finalTotalAmount
         );
         setBookingReference(refId);
         setStep(4);
@@ -486,7 +493,8 @@ function BookingContent() {
             if (verifyData.success) {
               await saveBookingToSupabase(
                 refId,
-                `Paid Online (Razorpay Payment ID: ${response.razorpay_payment_id}) [Charged: ₹${finalTotalAmount}]`
+                `Paid Online (Razorpay ID: ${response.razorpay_payment_id})`,
+                finalTotalAmount
               );
               setBookingReference(refId);
               setStep(4);

@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, logout } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -15,6 +16,13 @@ export default function Navbar() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // The admin dashboard is a separate, staff-only area — the
+  // customer-facing navbar (Login, My Account, Book Now, etc.)
+  // doesn't apply there and would just be confusing to show.
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   const isLoggedIn = Boolean(user && user.phone);
   const userName = user?.first_name || user?.name || "User";

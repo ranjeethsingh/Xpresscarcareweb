@@ -13,3 +13,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Force the Google account chooser to appear every time, instead of
+// silently reusing whichever Google account is already signed in.
+googleProvider.setCustomParameters({ prompt: "select_account" });

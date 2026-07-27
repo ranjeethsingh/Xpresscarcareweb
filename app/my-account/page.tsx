@@ -821,6 +821,13 @@ export default function MyAccountPage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  // Forgot-current-password: verify via OTP instead of the old password
+  const [passwordMode, setPasswordMode] = useState<"current" | "otp">("current");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [resetOtp, setResetOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -835,6 +842,8 @@ export default function MyAccountPage() {
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
+  const [clearingAllBookings, setClearingAllBookings] = useState(false);
 
   const isValidPhone = (num: string) => /^[6-9]\d{9}$/.test(num);
   const cleanPhone = (value: string) => value.replace(/\D/g, "").slice(0, 10);
@@ -873,6 +882,9 @@ export default function MyAccountPage() {
         .from("bookings")
         .select("*")
         .eq("customer_phone", targetPhone)
+        // Only show bookings the customer hasn't hidden from their own view.
+        // Rows are never actually deleted here — admins can still see everything.
+        .or("hidden_by_customer.is.null,hidden_by_customer.eq.false")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -1145,6 +1157,44 @@ export default function MyAccountPage() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmNewPassword("");
+    setPasswordMode("current");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setResetOtp("");
+    setSendingOtp(false);
+  };
+
+  const handleSendPasswordResetOtp = async () => {
+    setPasswordError("");
+    setSendingOtp(true);
+
+    try {
+      if (!phone && !email) {
+        setPasswordError("No phone number or email on file to send a code to.");
+        setSendingOtp(false);
+        return;
+      }
+
+      // Simulated OTP send (same test-mode pattern used elsewhere in this app).
+      // Replace with a real SMS/email OTP provider when going to production.
+      setOtpSent(true);
+    } catch (err) {
+      console.error("Failed to send OTP:", err);
+      setPasswordError("Failed to send OTP. Please try again.");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyPasswordResetOtp = () => {
+    setPasswordError("");
+
+    if (resetOtp !== "123456") {
+      setPasswordError("Invalid OTP. Use 123456 for testing.");
+      return;
+    }
+
+    setOtpVerified(true);
   };
 
   const handleChangePassword = async () => {
@@ -1170,30 +1220,31 @@ export default function MyAccountPage() {
       return;
     }
 
+    if (passwordMode === "otp" && !otpVerified) {
+      setPasswordError("Please verify the OTP first.");
+      setSavingPassword(false);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("password")
-        .eq("id", profileId)
-        .maybeSingle();
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId,
+          currentPassword,
+          newPassword,
+          passwordMode,
+        }),
+      });
 
-      if (error) throw error;
+      const result = await res.json();
 
-      if (data?.password && data.password !== currentPassword) {
-        setPasswordError("Current password is incorrect.");
+      if (!res.ok) {
+        setPasswordError(result.error || "Password change failed");
         setSavingPassword(false);
         return;
       }
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          password: newPassword,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profileId);
-
-      if (updateError) throw updateError;
 
       clearPasswordFields();
       setPasswordFormOpen(false);
@@ -1316,6 +1367,58 @@ export default function MyAccountPage() {
     } catch (err) {
       console.error("Failed to delete vehicle:", err);
       alert("Failed to delete vehicle.");
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    const confirmed = window.confirm("Remove this booking from your history? You can always contact us if you need it back.");
+    if (!confirmed) return;
+
+    setDeletingBookingId(bookingId);
+
+    try {
+      // Soft delete: hide from the customer's view only. The row stays in the
+      // database untouched so admins retain full booking history.
+      const { error } = await supabase
+        .from("bookings")
+        .update({ hidden_by_customer: true })
+        .eq("id", bookingId);
+      if (error) throw error;
+
+      setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    } catch (err) {
+      console.error("Failed to remove booking:", err);
+      alert("Failed to remove booking. Please try again.");
+    } finally {
+      setDeletingBookingId(null);
+    }
+  };
+
+  const handleClearAllBookings = async () => {
+    if (bookings.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Remove all ${bookings.length} booking${bookings.length === 1 ? "" : "s"} from your history? You can always contact us if you need them back.`
+    );
+    if (!confirmed) return;
+
+    setClearingAllBookings(true);
+
+    try {
+      // Soft delete: hide from the customer's view only. Rows stay in the
+      // database untouched so admins retain full booking history.
+      const { error } = await supabase
+        .from("bookings")
+        .update({ hidden_by_customer: true })
+        .eq("customer_phone", phone);
+      if (error) throw error;
+
+      setBookings([]);
+    } catch (err) {
+      console.error("Failed to clear bookings:", err);
+      alert("Failed to clear booking history. Please try again.");
+    } finally {
+      setClearingAllBookings(false);
     }
   };
 
@@ -1655,44 +1758,141 @@ export default function MyAccountPage() {
 
                   {passwordFormOpen && (
                     <div className="space-y-5">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
-                          Current Password
-                        </label>
-                        <PasswordInput
-                          value={currentPassword}
-                          onChange={setCurrentPassword}
-                          placeholder="Enter current password"
-                          name="xpress-current-password"
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                        />
+                      <div className="flex bg-slate-100 rounded-xl p-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordMode("current");
+                            setPasswordError("");
+                          }}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition ${
+                            passwordMode === "current"
+                              ? "bg-white text-slate-900 shadow-sm"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          I know my password
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordMode("otp");
+                            setPasswordError("");
+                            setOtpSent(false);
+                            setOtpVerified(false);
+                            setResetOtp("");
+                          }}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition ${
+                            passwordMode === "otp"
+                              ? "bg-white text-slate-900 shadow-sm"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Forgot password? Use OTP
+                        </button>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
-                          New Password
-                        </label>
-                        <PasswordInput
-                          value={newPassword}
-                          onChange={setNewPassword}
-                          placeholder="Enter new password"
-                          name="xpress-new-password"
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                        />
-                      </div>
+                      {passwordMode === "current" && (
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Current Password
+                          </label>
+                          <PasswordInput
+                            value={currentPassword}
+                            onChange={setCurrentPassword}
+                            placeholder="Enter current password"
+                            name="xpress-current-password"
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                          />
+                        </div>
+                      )}
 
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
-                          Confirm New Password
-                        </label>
-                        <PasswordInput
-                          value={confirmNewPassword}
-                          onChange={setConfirmNewPassword}
-                          placeholder="Re-type new password"
-                          name="xpress-confirm-new-password"
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
-                        />
-                      </div>
+                      {passwordMode === "otp" && !otpVerified && (
+                        <div className="bg-slate-50 rounded-xl p-5 space-y-4">
+                          {!otpSent ? (
+                            <>
+                              <p className="text-slate-600 text-sm">
+                                We&apos;ll send a verification code to{" "}
+                                <span className="font-semibold">
+                                  {phone ? `+91 ${phone}` : email || "your registered contact"}
+                                </span>
+                                .
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleSendPasswordResetOtp}
+                                disabled={sendingOtp}
+                                className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition disabled:opacity-50"
+                              >
+                                {sendingOtp ? "Sending..." : "Send OTP"}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                One-Time Password
+                              </label>
+                              <input
+                                type="text"
+                                value={resetOtp}
+                                onChange={(e) => setResetOtp(e.target.value)}
+                                placeholder="6-digit OTP"
+                                maxLength={6}
+                                autoComplete="off"
+                                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-center tracking-widest font-mono"
+                              />
+                              <p className="text-slate-400 text-xs text-center">
+                                Use <span className="font-mono font-bold">123456</span> for testing
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleVerifyPasswordResetOtp}
+                                className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition"
+                              >
+                                Verify Code
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {passwordMode === "otp" && otpVerified && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-green-700 text-sm font-semibold text-center">
+                          ✅ Code verified. Set your new password below.
+                        </div>
+                      )}
+
+                      {(passwordMode === "current" ||
+                        (passwordMode === "otp" && otpVerified)) && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              New Password
+                            </label>
+                            <PasswordInput
+                              value={newPassword}
+                              onChange={setNewPassword}
+                              placeholder="Enter new password"
+                              name="xpress-new-password"
+                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                              Confirm New Password
+                            </label>
+                            <PasswordInput
+                              value={confirmNewPassword}
+                              onChange={setConfirmNewPassword}
+                              placeholder="Re-type new password"
+                              name="xpress-confirm-new-password"
+                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            />
+                          </div>
+                        </>
+                      )}
 
                       {passwordError && (
                         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
@@ -1712,13 +1912,16 @@ export default function MyAccountPage() {
                           Cancel
                         </button>
 
-                        <button
-                          onClick={handleChangePassword}
-                          disabled={savingPassword}
-                          className="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50"
-                        >
-                          {savingPassword ? "Saving..." : "Save Password"}
-                        </button>
+                        {(passwordMode === "current" ||
+                          (passwordMode === "otp" && otpVerified)) && (
+                          <button
+                            onClick={handleChangePassword}
+                            disabled={savingPassword}
+                            className="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50"
+                          >
+                            {savingPassword ? "Saving..." : "Save Password"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2030,9 +2233,21 @@ export default function MyAccountPage() {
 
             {activeTab === "bookings" && (
               <section>
-                <h1 className="text-4xl font-extrabold tracking-tighter mb-8">
-                  My Bookings
-                </h1>
+                <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
+                  <h1 className="text-4xl font-extrabold tracking-tighter">
+                    My Bookings
+                  </h1>
+
+                  {!bookingsLoading && bookings.length > 0 && (
+                    <button
+                      onClick={handleClearAllBookings}
+                      disabled={clearingAllBookings}
+                      className="text-red-600 border border-red-200 hover:bg-red-50 px-5 py-2.5 rounded-full text-sm font-bold transition disabled:opacity-50"
+                    >
+                      {clearingAllBookings ? "Clearing..." : "🗑️ Clear All History"}
+                    </button>
+                  )}
+                </div>
 
                 {bookingsLoading && (
                   <div className="text-center py-20">
@@ -2103,6 +2318,14 @@ export default function MyAccountPage() {
                             <span className="text-slate-400 text-sm">
                               Booked on {new Date(b.created_at).toLocaleDateString()}
                             </span>
+
+                            <button
+                              onClick={() => handleDeleteBooking(b.id)}
+                              disabled={deletingBookingId === b.id}
+                              className="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50"
+                            >
+                              {deletingBookingId === b.id ? "Deleting..." : "🗑️ Delete"}
+                            </button>
                           </div>
                         </div>
                       </div>

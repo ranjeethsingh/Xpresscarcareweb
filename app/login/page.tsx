@@ -3,18 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { auth, googleProvider } from "@/lib/firebase";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithPopup, signOut } from "firebase/auth";
 import PasswordInput from "@/components/PasswordInput";
+import { useAuth } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
-type Step = "form" | "otp" | "profile";
+type Step = "form" | "otp" | "profile" | "forgot-request" | "forgot-otp" | "forgot-reset";
 type OtpMethod = "phone" | "email";
 type VehicleType = "car" | "bike" | "";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<Step>("form");
@@ -32,6 +33,12 @@ export default function LoginPage() {
   // OTP
   const [otp, setOtp] = useState("");
 
+  // Forgot password flow
+  const [resetOtp, setResetOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [resetProfileId, setResetProfileId] = useState<string | null>(null);
+
   // Profile fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -46,7 +53,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isRedirectMsg = error.includes("Redirecting");
+  const isRedirectMsg = error.includes("Redirecting") || error.includes("successful");
 
   const errorClass = isRedirectMsg
     ? "text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center font-medium"
@@ -97,20 +104,22 @@ export default function LoginPage() {
 
   const lookupByEmail = async (emailAddress: string) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", emailAddress)
-        .maybeSingle();
+      const res = await fetch("/api/auth/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "email", email: emailAddress }),
+      });
 
-      if (error) {
-        console.error("Email lookup error:", error);
+      const result = await res.json();
+
+      if (!res.ok) {
+        console.error("Email lookup error:", result.error);
         return null;
       }
 
-      if (data) {
-        applyProfileToState(data);
-        return data;
+      if (result.profile) {
+        applyProfileToState(result.profile);
+        return result.profile;
       }
 
       return null;
@@ -122,20 +131,22 @@ export default function LoginPage() {
 
   const lookupByPhone = async (phoneNumber: string) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("phone", phoneNumber)
-        .maybeSingle();
+      const res = await fetch("/api/auth/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "phone", phone: phoneNumber }),
+      });
 
-      if (error) {
-        console.error("Phone lookup error:", error);
+      const result = await res.json();
+
+      if (!res.ok) {
+        console.error("Phone lookup error:", result.error);
         return null;
       }
 
-      if (data) {
-        applyProfileToState(data);
-        return data;
+      if (result.profile) {
+        applyProfileToState(result.profile);
+        return result.profile;
       }
 
       return null;
@@ -145,7 +156,7 @@ export default function LoginPage() {
     }
   };
 
-  const setLoginState = (profileId?: string, profile?: any) => {
+  const setLoginState = async (profileId?: string, profile?: any) => {
     const source = profile || {};
 
     let resolvedFirstName = source.first_name || firstName || "";
@@ -182,8 +193,11 @@ export default function LoginPage() {
     };
 
     // Password is NOT saved in localStorage
-    localStorage.setItem("xpress_user", JSON.stringify(userData));
     localStorage.setItem("xpress_prefill", JSON.stringify(userData));
+
+    // Updates AuthContext's shared state (and xpress_user in localStorage)
+    // so the Navbar/logout button reflect login immediately, without needing a reload.
+    await login(userData as any);
   };
 
   const clearAllPasswordFields = () => {
@@ -228,24 +242,33 @@ export default function LoginPage() {
     }
 
     try {
-      const profile =
-        otpMethod === "phone"
-          ? await lookupByPhone(phone)
-          : await lookupByEmail(email);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: otpMethod,
+          phone: otpMethod === "phone" ? phone : undefined,
+          email: otpMethod === "email" ? email : undefined,
+          password,
+        }),
+      });
 
-      if (!profile) {
+      const result = await res.json();
+
+      if (res.status === 404) {
         redirectToSignup();
         setLoading(false);
         return;
       }
 
-      if (profile.password !== password) {
-        setError("Incorrect password");
+      if (!res.ok) {
+        setError(result.error || "Incorrect password");
         setLoading(false);
         return;
       }
 
-      setLoginState(profile.id, profile);
+      applyProfileToState(result.profile);
+      await setLoginState(result.profile.id, result.profile);
       clearAllPasswordFields();
 
       router.replace("/my-account");
@@ -327,6 +350,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Clear any lingering Firebase session first, so this is always a
+      // fresh sign-in and never silently reuses a previous account.
+      // (Not gated on auth.currentUser — that can still be null here if
+      // Firebase hasn't finished hydrating the persisted session yet.)
+      await signOut(auth).catch(() => {});
+
       const result = await signInWithPopup(auth, googleProvider);
       const googleUser = result.user;
 
@@ -351,7 +380,7 @@ export default function LoginPage() {
         profile.phone.length >= 10 &&
         (profile.first_name || profile.name)
       ) {
-        setLoginState(profile.id, profile);
+        await setLoginState(profile.id, profile);
         clearAllPasswordFields();
         router.replace("/my-account");
         return;
@@ -383,6 +412,113 @@ export default function LoginPage() {
     }
 
     setStep("profile");
+  };
+
+  const handleForgotRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      if (otpMethod === "phone") {
+        if (!isValidPhone(phone)) {
+          setError("Phone number must be 10 digits starting with 6, 7, 8, or 9");
+          setLoading(false);
+          return;
+        }
+      } else {
+        if (!email || !email.includes("@")) {
+          setError("Please enter a valid email address");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const profile =
+        otpMethod === "phone" ? await lookupByPhone(phone) : await lookupByEmail(email);
+
+      if (!profile) {
+        setError("No account found with that " + (otpMethod === "phone" ? "phone number" : "email"));
+        setLoading(false);
+        return;
+      }
+
+      setResetProfileId(profile.id);
+      setResetOtp("");
+      setStep("forgot-otp");
+    } catch (err) {
+      console.error("Forgot password lookup failed:", err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyResetOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (resetOtp !== "123456") {
+      setError("Invalid OTP. Use 123456 for testing.");
+      return;
+    }
+
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setStep("forgot-reset");
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!newPassword) {
+      setError("Please enter a new password");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (!resetProfileId) {
+      setError("Something went wrong. Please restart the reset process.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId: resetProfileId,
+          newPassword,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Could not reset password");
+      }
+
+      clearAllPasswordFields();
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setResetOtp("");
+      setResetProfileId(null);
+      setMode("login");
+      setStep("form");
+      setError("Password reset successful. Please log in with your new password.");
+    } catch (err: any) {
+      console.error("Password reset failed:", err);
+      setError(`Reset failed: ${err?.message || "Unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -436,53 +572,26 @@ export default function LoginPage() {
         profileData.vehicle_reg = cleanVehicleReg(vehicleReg);
       }
 
-      // Password is only saved to Supabase for temporary dev login.
-      // It is NOT saved in localStorage.
-      if (signupPassword) {
-        profileData.password = signupPassword;
+      // Password is sent separately (not inside profileData) so the API route
+      // can hash it server-side before it ever touches the database.
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileData,
+          password: signupPassword || undefined,
+          phone,
+          email: email || undefined,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Could not save profile");
       }
 
-      const { data: existingByPhone } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("phone", phone)
-        .maybeSingle();
-
-      let existingByEmail = null;
-
-      if (email) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("email", email)
-          .maybeSingle();
-
-        existingByEmail = data;
-      }
-
-      const existing = existingByPhone || existingByEmail;
-      let profileId: string;
-
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update(profileData)
-          .eq("id", existing.id);
-
-        if (updateError) throw new Error(updateError.message);
-
-        profileId = existing.id;
-      } else {
-        const { data, error: insertError } = await supabase
-          .from("profiles")
-          .insert(profileData)
-          .select("id")
-          .single();
-
-        if (insertError) throw new Error(insertError.message);
-
-        profileId = data.id;
-      }
+      const profileId: string = result.id;
 
       const savedProfile = {
         id: profileId,
@@ -498,7 +607,7 @@ export default function LoginPage() {
         vehicle_reg: cleanVehicleReg(vehicleReg) || "",
       };
 
-      setLoginState(profileId, savedProfile);
+      await setLoginState(profileId, savedProfile);
       clearAllPasswordFields();
 
       router.replace("/my-account");
@@ -520,6 +629,9 @@ export default function LoginPage() {
             {step === "otp" && "Verify OTP"}
             {step === "profile" &&
               (mode === "signup" ? "Create Your Account" : "Complete Your Profile")}
+            {step === "forgot-request" && "Reset Password"}
+            {step === "forgot-otp" && "Verify OTP"}
+            {step === "forgot-reset" && "Set New Password"}
           </h1>
 
           <p className="text-slate-500 text-lg">
@@ -534,6 +646,15 @@ export default function LoginPage() {
               otpMethod === "email" &&
               `Enter the OTP sent to ${email}`}
             {step === "profile" && "Fill in your details to continue"}
+            {step === "forgot-request" &&
+              "Enter your phone or email to receive a reset code"}
+            {step === "forgot-otp" &&
+              otpMethod === "phone" &&
+              `Enter the OTP sent to ${phone}`}
+            {step === "forgot-otp" &&
+              otpMethod === "email" &&
+              `Enter the OTP sent to ${email}`}
+            {step === "forgot-reset" && "Choose a new password for your account"}
           </p>
         </div>
 
@@ -692,6 +813,19 @@ export default function LoginPage() {
                       name="xpress-login-password"
                       className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg"
                     />
+                    <div className="text-right mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError("");
+                          setPassword("");
+                          setStep("forgot-request");
+                        }}
+                        className="text-blue-600 text-sm font-semibold hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </div>
 
                   {error && <p className={`text-sm ${errorClass}`}>{error}</p>}
@@ -830,6 +964,200 @@ export default function LoginPage() {
                 className="w-full text-slate-500 hover:text-slate-700 text-sm font-medium transition"
               >
                 ← Back
+              </button>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD: REQUEST STEP */}
+          {step === "forgot-request" && (
+            <form onSubmit={handleForgotRequest} className="space-y-4">
+              {/* Phone / Email Toggle */}
+              <div className="flex bg-slate-100 rounded-xl p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpMethod("phone");
+                    setError("");
+                  }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition ${
+                    otpMethod === "phone"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  📱 Phone
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpMethod("email");
+                    setError("");
+                  }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition ${
+                    otpMethod === "email"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500"
+                  }`}
+                >
+                  ✉️ Email
+                </button>
+              </div>
+
+              {otpMethod === "phone" ? (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(cleanPhone(e.target.value))}
+                    placeholder="10-digit mobile number"
+                    maxLength={10}
+                    autoComplete="off"
+                    className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    autoComplete="off"
+                    className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg"
+                  />
+                </div>
+              )}
+
+              {error && <p className={`text-sm ${errorClass}`}>{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              >
+                {loading ? "Sending OTP..." : "Send Reset Code"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("form");
+                  setError("");
+                }}
+                className="w-full text-slate-500 hover:text-slate-700 text-sm font-medium transition"
+              >
+                ← Back to Login
+              </button>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD: OTP STEP */}
+          {step === "forgot-otp" && (
+            <form onSubmit={handleVerifyResetOtp} className="space-y-6">
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <p className="text-blue-700 text-sm">
+                  {otpMethod === "phone" && (
+                    <>
+                      OTP sent to <span className="font-bold">{phone}</span>
+                    </>
+                  )}
+                  {otpMethod === "email" && (
+                    <>
+                      OTP sent to <span className="font-bold">{email}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  One-Time Password
+                </label>
+                <input
+                  type="text"
+                  value={resetOtp}
+                  onChange={(e) => setResetOtp(e.target.value)}
+                  placeholder="6-digit OTP"
+                  maxLength={6}
+                  autoComplete="off"
+                  className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg tracking-widest text-center font-mono"
+                />
+
+                {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+                <p className="text-slate-400 text-xs mt-2 text-center">
+                  Use <span className="font-mono font-bold">123456</span> for testing
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20"
+              >
+                Verify Code
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("forgot-request");
+                  setError("");
+                  setResetOtp("");
+                }}
+                className="w-full text-slate-500 hover:text-slate-700 text-sm font-medium transition"
+              >
+                ← Back
+              </button>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD: RESET STEP */}
+          {step === "forgot-reset" && (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  New Password
+                </label>
+                <PasswordInput
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Enter a new password"
+                  name="xpress-new-password"
+                  className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Confirm New Password
+                </label>
+                <PasswordInput
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  placeholder="Re-type your new password"
+                  name="xpress-confirm-new-password"
+                  className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-lg"
+                />
+                {confirmNewPassword && newPassword !== confirmNewPassword && (
+                  <p className="text-red-500 text-xs mt-1">Passwords do not match</p>
+                )}
+              </div>
+
+              {error && <p className={`text-sm ${errorClass}`}>{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              >
+                {loading ? "Saving..." : "Reset Password"}
               </button>
             </form>
           )}
