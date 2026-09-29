@@ -22,9 +22,36 @@ type Booking = {
 export default function BookingPopupListener() {
   const [incoming, setIncoming] = useState<Booking | null>(null);
   const [deciding, setDeciding] = useState(false);
+  const [soundReady, setSoundReady] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Browsers block audio until the user interacts with the page.
+  // Create and resume the AudioContext on the first click / tap / key press.
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        if (!audioCtxRef.current) {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          audioCtxRef.current = new AudioCtx();
+        }
+        const ctx = audioCtxRef.current;
+        const markReady = () => setSoundReady(ctx.state === 'running');
+        if (ctx.state === 'suspended') {
+          ctx.resume().then(markReady).catch(markReady);
+        } else {
+          markReady();
+        }
+      } catch (e) {
+        console.error('Audio unlock failed:', e);
+      }
+    };
+
+    const events = ['click', 'touchstart', 'keydown'];
+    events.forEach((ev) => window.addEventListener(ev, unlock, { once: true }));
+    return () => events.forEach((ev) => window.removeEventListener(ev, unlock));
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -86,6 +113,7 @@ export default function BookingPopupListener() {
   };
 
   const startRinging = () => {
+    if (beepIntervalRef.current) return; // never stack two intervals
     playBeep();
     beepIntervalRef.current = setInterval(playBeep, 1500);
   };
@@ -124,7 +152,15 @@ export default function BookingPopupListener() {
     }
   };
 
-  if (!incoming) return null;
+  if (!incoming) {
+    // Small hint so you know when alerts will be silent (delete this block if you don't want it)
+    if (soundReady) return null;
+    return (
+      <div className="fixed bottom-4 right-4 z-40 rounded-full bg-amber-100 border border-amber-400 text-amber-900 text-xs font-bold px-3 py-2 shadow">
+        🔇 Tap anywhere to enable booking alert sound
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
