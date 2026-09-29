@@ -45,7 +45,6 @@ interface Booking {
   repair_status_updated_at: string;
 }
 
-
 export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
@@ -113,8 +112,7 @@ export default function AdminPage() {
         return (b.scheduled_time || "").localeCompare(a.scheduled_time || "");
       });
 
-    // Live updates instead of 30s polling — no more full-grid reload/flicker,
-    // new bookings and status changes just patch into the existing list.
+    // Live updates instead of 30s polling
     const channel = supabase
       .channel("admin-bookings-list")
       .on(
@@ -185,15 +183,12 @@ export default function AdminPage() {
     }
   };
 
-  // Auto-logout staff after 5 minutes of no activity, since this dashboard
-  // shows customer contact info and lets someone change repair statuses.
   useInactivityLogout(handleLogout, INACTIVITY_TIMEOUT_MS, authenticated);
 
   const updateStatus = async (id: string, status: string) => {
     try {
       const updates: { status: string; repair_status?: string; repair_status_updated_at?: string } = { status };
 
-      // Confirming a booking also starts the repair timeline — no separate manual step needed
       if (status === "confirmed") {
         updates.repair_status = "Booking Confirmed";
         updates.repair_status_updated_at = new Date().toISOString();
@@ -218,7 +213,6 @@ export default function AdminPage() {
     const repairStatus = repairStatusDraft[id];
     if (!repairStatus) return;
 
-    // Reaching the final repair stage means the job is done — no separate "Mark Complete" click needed
     const isFinalStage = repairStatus === "Delivered";
 
     setSavingRepairStatus(id);
@@ -286,7 +280,6 @@ export default function AdminPage() {
     }
   };
 
-  // Filter Bookings based on Status and Search Query (Name, Phone, Vehicle Number/Model)
   const filteredBookings = bookings.filter((b) => {
     const matchesFilter =
       filter === "all" || b.status?.toLowerCase() === filter.toLowerCase();
@@ -313,26 +306,26 @@ export default function AdminPage() {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case "confirmed":
-        return "bg-green-100 text-green-700 border-green-200";
+        return "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
       case "cancelled":
-        return "bg-red-100 text-red-700 border-red-200";
+        return "bg-rose-100 text-rose-800 border-rose-300 font-bold";
       case "completed":
-        return "bg-blue-100 text-blue-700 border-blue-200";
+        return "bg-sky-100 text-sky-800 border-sky-300 font-bold";
       default:
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        return "bg-amber-100 text-amber-800 border-amber-300 font-bold";
     }
   };
 
   const getStatusBorderColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case "confirmed":
-        return "border-l-green-500";
+        return "border-l-emerald-500 shadow-emerald-500/5";
       case "cancelled":
-        return "border-l-red-500";
+        return "border-l-rose-500 shadow-rose-500/5";
       case "completed":
-        return "border-l-blue-500";
+        return "border-l-sky-500 shadow-sky-500/5";
       default:
-        return "border-l-yellow-400";
+        return "border-l-amber-400 shadow-amber-500/5";
     }
   };
 
@@ -352,7 +345,7 @@ export default function AdminPage() {
       <div className="min-h-[85vh] flex items-center justify-center px-6 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 text-3xl">
+            <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 text-3xl">
               🔧
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-white">
@@ -362,9 +355,9 @@ export default function AdminPage() {
           </div>
           <form
             onSubmit={handleLogin}
-            className="bg-white rounded-3xl p-8 shadow-2xl"
+            className="bg-white rounded-3xl p-8 shadow-2xl space-y-4"
           >
-            <div className="mb-6">
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
               </label>
@@ -379,12 +372,24 @@ export default function AdminPage() {
                 <p className="text-red-500 text-sm mt-2">{passwordError}</p>
               )}
             </div>
+
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition shadow-lg shadow-blue-500/20"
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition shadow-lg shadow-blue-500/20 active:scale-[0.99]"
             >
               Login
             </button>
+
+            {/* Vibrant, Colorful Back to Home CTA */}
+            <Link
+              href="/"
+              className="group relative flex items-center justify-center w-full py-3 px-4 rounded-xl font-extrabold text-white bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 hover:from-amber-600 hover:via-rose-600 hover:to-purple-700 shadow-md shadow-rose-500/20 transition-all duration-200 active:scale-[0.99] overflow-hidden"
+            >
+              <span className="relative z-10 flex items-center gap-2">
+                <span className="transition-transform group-hover:-translate-x-1">←</span>
+                Back to Home
+              </span>
+            </Link>
           </form>
         </div>
       </div>
@@ -394,7 +399,7 @@ export default function AdminPage() {
   // Dashboard
   return (
     <div className="relative min-h-[80vh] py-12 lg:py-16 overflow-hidden">
-      {/* Living background — real shop photos slowly cross-fading */}
+      {/* Living background */}
       <div className="fixed inset-0 -z-10 bg-slate-950">
         {BACKGROUND_IMAGES.map((src, i) => (
           <div
@@ -413,7 +418,6 @@ export default function AdminPage() {
             />
           </div>
         ))}
-        {/* Dark overlay so cards and text stay fully readable over any photo */}
         <div className="absolute inset-0 bg-slate-950/75" />
       </div>
 
@@ -467,30 +471,30 @@ export default function AdminPage() {
               Pending
             </div>
           </div>
-          <div className="bg-green-50 border-t-4 border-green-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+          <div className="bg-emerald-50 border-t-4 border-emerald-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
             <div className="text-2xl mb-1">✅</div>
-            <div className="text-3xl font-black text-green-700">
+            <div className="text-3xl font-black text-emerald-700">
               {stats.confirmed}
             </div>
-            <div className="text-green-600 text-sm font-medium mt-1">
+            <div className="text-emerald-600 text-sm font-medium mt-1">
               Confirmed
             </div>
           </div>
-          <div className="bg-blue-50 border-t-4 border-blue-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+          <div className="bg-sky-50 border-t-4 border-sky-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
             <div className="text-2xl mb-1">🏁</div>
-            <div className="text-3xl font-black text-blue-700">
+            <div className="text-3xl font-black text-sky-700">
               {stats.completed}
             </div>
-            <div className="text-blue-600 text-sm font-medium mt-1">
+            <div className="text-sky-600 text-sm font-medium mt-1">
               Completed
             </div>
           </div>
-          <div className="bg-red-50 border-t-4 border-red-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+          <div className="bg-rose-50 border-t-4 border-rose-500 rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
             <div className="text-2xl mb-1">✕</div>
-            <div className="text-3xl font-black text-red-700">
+            <div className="text-3xl font-black text-rose-700">
               {stats.cancelled}
             </div>
-            <div className="text-red-600 text-sm font-medium mt-1">
+            <div className="text-rose-600 text-sm font-medium mt-1">
               Cancelled
             </div>
           </div>
@@ -528,7 +532,7 @@ export default function AdminPage() {
                 onClick={() => setFilter(f)}
                 className={`px-5 py-2 rounded-full text-xs font-bold capitalize transition ${
                   filter === f
-                    ? "bg-slate-950 text-white"
+                    ? "bg-slate-950 text-white shadow-md"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -557,238 +561,222 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Bookings List */}
+        {/* Enhanced Responsive Grid & Colored Tiles */}
         {!loading && filteredBookings.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredBookings.map((booking) => (
               <div
                 key={booking.id}
-                className={`bg-white/95 backdrop-blur-sm border border-slate-200/70 border-l-4 ${getStatusBorderColor(
+                className={`bg-white/95 backdrop-blur-sm border border-slate-200/80 border-l-[6px] ${getStatusBorderColor(
                   booking.status
-                )} rounded-xl p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all flex flex-col`}
+                )} rounded-2xl p-5 hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between`}
               >
-                <div className="flex flex-col gap-3">
-                  {/* Left: Info */}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-xl">
+                <div className="space-y-3">
+                  {/* Card Top Banner */}
+                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-2xl p-2 bg-slate-100 rounded-xl">
                         {booking.vehicle_type === "car" ? "🚗" : "🏍️"}
                       </span>
                       <div className="min-w-0">
-                        <h3 className="text-sm font-extrabold tracking-tight text-slate-900 truncate">
+                        <h3 className="text-base font-extrabold text-slate-900 truncate">
                           {booking.customer_name}
                         </h3>
                         <a
                           href={`tel:${booking.customer_phone}`}
-                          className="text-blue-600 text-xs font-semibold hover:underline"
+                          className="text-blue-600 text-xs font-bold hover:underline block"
                         >
                           +91 {booking.customer_phone}
                         </a>
                       </div>
-                      <span
-                        className={`ml-auto shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold capitalize border ${getStatusColor(
-                          booking.status
-                        )}`}
-                      >
-                        {booking.status || "pending"}
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs capitalize border ${getStatusColor(
+                        booking.status
+                      )}`}
+                    >
+                      {booking.status || "pending"}
+                    </span>
+                  </div>
+
+                  {/* Vehicle & Services Details */}
+                  <div className="space-y-2 text-xs">
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">
+                        Vehicle Info
                       </span>
+                      <p className="font-bold text-slate-800 text-sm mt-0.5 flex items-center justify-between">
+                        <span>{booking.vehicle_model}</span>
+                        <span className="font-mono bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-xs font-bold">
+                          {booking.vehicle_number}
+                        </span>
+                      </p>
                     </div>
 
-                    <div className="space-y-1.5 text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                        Requested Services
+                      </span>
+                      <p className="font-semibold text-slate-700 text-xs mt-0.5">
+                        {booking.service_type}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                       <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Vehicle</span>
-                        <p className="font-semibold text-slate-700 text-[13px] mt-0.5">
-                          {booking.vehicle_model}{" "}
-                          <span className="font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-xs font-bold">
-                            {booking.vehicle_number}
-                          </span>
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                          Date & Time
+                        </span>
+                        <p className="font-bold text-slate-700 text-xs mt-0.5">
+                          {booking.scheduled_date} <br />
+                          <span className="text-slate-500 font-normal">at {booking.scheduled_time}</span>
                         </p>
                       </div>
 
                       <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Services</span>
-                        <p className="font-semibold text-slate-700 text-[13px] mt-0.5">{booking.service_type}</p>
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                          Delivery Method
+                        </span>
+                        <p className="font-bold text-slate-700 text-xs mt-0.5 capitalize">
+                          {booking.delivery_type === "onsite"
+                            ? "📍 Doorstep Service"
+                            : "🚚 Pickup & Drop"}
+                        </p>
                       </div>
-
-                      {booking.payment_status && (
-                        <div>
-                          <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Payment</span>
-                          <p className="font-semibold text-slate-700 text-[13px] mt-0.5">
-                            {booking.payment_status}
-                            {booking.amount_charged ? ` — ₹${booking.amount_charged.toLocaleString()}` : ""}
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-6">
-                        <div>
-                          <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Date & Time</span>
-                          <p className="font-semibold text-slate-700 text-[13px] mt-0.5">
-                            {booking.scheduled_date} at {booking.scheduled_time}
-                          </p>
-                        </div>
-
-                        <div>
-                          <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Delivery</span>
-                          <p className="font-semibold capitalize text-slate-700 text-[13px] mt-0.5">
-                            {booking.delivery_type === "onsite"
-                              ? "At location"
-                              : "Pickup & Drop"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {booking.address && booking.address !== "N/A" && (
-                        <div>
-                          <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Address</span>
-                          <p className="font-semibold text-slate-700 text-[13px] mt-0.5">{booking.address}</p>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Admin Notes Box */}
-                    {editingNotes === booking.id ? (
-                      <div className="mt-4">
-                        <textarea
-                          value={noteText}
-                          onChange={(e) => setNoteText(e.target.value)}
-                          placeholder="Add admin notes..."
-                          rows={3}
-                          className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none text-sm"
-                        />
-                        <div className="flex gap-3 mt-3">
-                          <button
-                            onClick={() => saveNotes(booking.id)}
-                            className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
-                          >
-                            Save Notes
-                          </button>
-                          <button
-                            onClick={() => setEditingNotes(null)}
-                            className="px-5 py-2 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-100 transition"
-                          >
-                            Cancel
-                          </button>
-                        </div>
+                    {booking.address && booking.address !== "N/A" && (
+                      <div className="pt-1">
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                          Service Address
+                        </span>
+                        <p className="font-semibold text-slate-700 text-xs mt-0.5 line-clamp-2">
+                          {booking.address}
+                        </p>
                       </div>
-                    ) : (
-                      booking.admin_notes && (
-                        <div className="mt-2 bg-slate-50 rounded-lg p-3 border border-slate-200">
-                          <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                            Admin Notes
-                          </span>
-                          <p className="text-sm mt-1 text-slate-800">{booking.admin_notes}</p>
-                        </div>
-                      )
                     )}
                   </div>
 
-                  {/* Right: Actions */}
-                  <div className="flex flex-col gap-2">
-                    {booking.status === "pending" && (
-                      <div className="grid grid-cols-2 gap-2">
+                  {/* Notes Section */}
+                  {editingNotes === booking.id ? (
+                    <div className="pt-2">
+                      <textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Add admin notes..."
+                        rows={3}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs outline-none resize-none"
+                      />
+                      <div className="flex gap-2 mt-2">
                         <button
-                          onClick={() => updateStatus(booking.id, "confirmed")}
-                          className="px-3 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition"
+                          onClick={() => saveNotes(booking.id)}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
                         >
-                          ✓ Confirm
+                          Save
                         </button>
                         <button
-                          onClick={() => updateStatus(booking.id, "cancelled")}
-                          className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition"
+                          onClick={() => setEditingNotes(null)}
+                          className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold"
                         >
-                          ✕ Cancel
+                          Cancel
                         </button>
                       </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <a
-                        href={`tel:${booking.customer_phone}`}
-                        className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition text-center"
-                      >
-                        📞 Call
-                      </a>
-                      <button
-                        onClick={() => {
-                          setEditingNotes(booking.id);
-                          setNoteText(booking.admin_notes || "");
-                        }}
-                        className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition"
-                      >
-                        📝 Notes
-                      </button>
                     </div>
-
-                    {(booking.status === "confirmed" || booking.status === "completed") && (
-                      <div className="pt-1.5 border-t border-slate-100">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                          Repair Status
-                        </label>
-
-                        {(() => {
-                          const currentStatus = booking.repair_status || "Booking Confirmed";
-                          const stageIndex = Math.max(0, REPAIR_STAGES.indexOf(currentStatus));
-                          const percent = ((stageIndex + 1) / REPAIR_STAGES.length) * 100;
-                          return (
-                            <div className="mt-2 mb-3">
-                              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-gradient-to-r from-amber-400 via-blue-500 to-green-500 transition-all duration-500"
-                                  style={{ width: `${percent}%` }}
-                                />
-                              </div>
-                              <p className="text-xs text-slate-500 mt-1 font-medium">
-                                Stage {stageIndex + 1} of {REPAIR_STAGES.length} — {currentStatus}
-                              </p>
-                            </div>
-                          );
-                        })()}
-
-                        <select
-                          value={repairStatusDraft[booking.id] ?? booking.repair_status ?? "Booking Confirmed"}
-                          onChange={(e) =>
-                            setRepairStatusDraft((prev) => ({ ...prev, [booking.id]: e.target.value }))
-                          }
-                          className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white"
-                        >
-                          {/* "Booking Confirmed" is set automatically when you click Confirm above — not offered here to avoid re-entering the same fact twice */}
-                          <option value="Vehicle Received">Vehicle Received</option>
-                          <option value="Under Inspection">Under Inspection</option>
-                          <option value="Repair in Progress">Repair in Progress</option>
-                          <option value="Awaiting Parts">Awaiting Parts</option>
-                          <option value="Ready for Delivery">Ready for Delivery</option>
-                          <option value="Delivered">Delivered</option>
-                        </select>
-
-                        {repairStatusDraft[booking.id] &&
-                          repairStatusDraft[booking.id] !== (booking.repair_status || "Booking Confirmed") && (
-                            <button
-                              onClick={() => updateRepairStatus(booking.id)}
-                              disabled={savingRepairStatus === booking.id}
-                              className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition disabled:opacity-60"
-                            >
-                              {savingRepairStatus === booking.id ? "Saving..." : "Update Status"}
-                            </button>
-                          )}
-
-                        {justSavedRepairStatus === booking.id && (
-                          <p className="mt-2 text-sm font-semibold text-green-600">✓ Status updated</p>
-                        )}
+                  ) : (
+                    booking.admin_notes && (
+                      <div className="bg-amber-50/60 rounded-xl p-2.5 border border-amber-200/60">
+                        <span className="text-amber-800 text-[10px] font-bold uppercase tracking-wider">
+                          Admin Notes
+                        </span>
+                        <p className="text-xs mt-0.5 text-amber-900 font-medium">
+                          {booking.admin_notes}
+                        </p>
                       </div>
-                    )}
-                  </div>
+                    )
+                  )}
                 </div>
 
-                {/* Card Footer */}
-                <div className="mt-3 pt-3 border-t border-slate-100 text-xs font-medium flex flex-wrap gap-x-1.5 gap-y-0.5">
-                  <span className="text-slate-500">
-                    📅 Booked on {new Date(booking.created_at).toLocaleString()}
-                  </span>
-                  {booking.repair_status_updated_at && (
-                    <span className="text-blue-600">
-                      · 🔄 Status updated {new Date(booking.repair_status_updated_at).toLocaleString()}
-                    </span>
+                {/* Actions & Status Dropdown */}
+                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                  {booking.status === "pending" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => updateStatus(booking.id, "confirmed")}
+                        className="px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition"
+                      >
+                        ✓ Confirm
+                      </button>
+                      <button
+                        onClick={() => updateStatus(booking.id, "cancelled")}
+                        className="px-3 py-2 bg-rose-100 text-rose-700 rounded-xl text-xs font-bold hover:bg-rose-200 transition"
+                      >
+                        ✕ Cancel
+                      </button>
+                    </div>
                   )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={`tel:${booking.customer_phone}`}
+                      className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition text-center"
+                    >
+                      📞 Call
+                    </a>
+                    <button
+                      onClick={() => {
+                        setEditingNotes(booking.id);
+                        setNoteText(booking.admin_notes || "");
+                      }}
+                      className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition"
+                    >
+                      📝 Notes
+                    </button>
+                  </div>
+
+                  {(booking.status === "confirmed" || booking.status === "completed") && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          Repair Status
+                        </span>
+                        <span className="text-[10px] font-bold text-blue-600">
+                          {booking.repair_status || "Booking Confirmed"}
+                        </span>
+                      </div>
+
+                      <select
+                        value={repairStatusDraft[booking.id] ?? booking.repair_status ?? "Booking Confirmed"}
+                        onChange={(e) =>
+                          setRepairStatusDraft((prev) => ({ ...prev, [booking.id]: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 bg-white"
+                      >
+                        <option value="Vehicle Received">Vehicle Received</option>
+                        <option value="Under Inspection">Under Inspection</option>
+                        <option value="Repair in Progress">Repair in Progress</option>
+                        <option value="Awaiting Parts">Awaiting Parts</option>
+                        <option value="Ready for Delivery">Ready for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                      </select>
+
+                      {repairStatusDraft[booking.id] &&
+                        repairStatusDraft[booking.id] !== (booking.repair_status || "Booking Confirmed") && (
+                          <button
+                            onClick={() => updateRepairStatus(booking.id)}
+                            disabled={savingRepairStatus === booking.id}
+                            className="w-full mt-2 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition disabled:opacity-60"
+                          >
+                            {savingRepairStatus === booking.id ? "Saving..." : "Update Stage"}
+                          </button>
+                        )}
+                    </div>
+                  )}
+
+                  {/* Card Timestamp */}
+                  <div className="text-[10px] text-slate-400 text-center pt-1">
+                    📅 {new Date(booking.created_at).toLocaleDateString()} at{" "}
+                    {new Date(booking.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
                 </div>
               </div>
             ))}

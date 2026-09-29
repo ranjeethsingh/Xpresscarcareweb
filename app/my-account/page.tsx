@@ -570,7 +570,7 @@ function ContactContent() {
         <p className="text-slate-600 mb-6">Gajularamaram, Hyderabad</p>
 
         <a
-          href="https://maps.app.goo.gl/2eMnBrWRLBEvnyZT7"
+          href="https://www.google.com/maps/place/Xpress+Car+Care/@17.5199193,78.4166974,595a,48.9y,363.44h,106.38t/data=!3m7!1e1!3m5!1sbccLSVktOdymeLBWWAL9Bw!2e0!6shttps:%2F%2Fstreetviewpixels-pa.clients6.google.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D-16.377965945028933%26panoid%3DbccLSVktOdymeLBWWAL9Bw%26yaw%3D3.4409939486251346!7i16384!8i8192!4m6!3m5!1s0x3bcb8f8b3ee93ec3:0xf0beb6afe3a31858!8m2!3d17.5199924!4d78.4168634!16s%2Fg%2F11ytknzsl6?entry=ttu&g_ep=EgoyMDI2MDcyMi4wIKXMDSoASAFQAw%3D%3D"
           target="_blank"
           rel="noreferrer"
           className="inline-block bg-blue-600 text-white px-6 py-3 rounded-full font-bold hover:bg-blue-700 transition"
